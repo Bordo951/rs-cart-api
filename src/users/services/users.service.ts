@@ -1,26 +1,44 @@
 import { Injectable } from '@nestjs/common';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 
-import { v4 } from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 
-import { User } from '../models';
+import { User } from '../../database/entities';
+
+export class CreateUserDTO {
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  email?: string;
+
+  @ApiProperty()
+  password: string;
+}
 
 @Injectable()
 export class UsersService {
-  private readonly users: Record<string, User>;
+  constructor(
+    @InjectRepository(User)
+    private readonly users: Repository<User>,
+  ) {}
 
-  constructor() {
-    this.users = {}
+  async findOne(userId: string): Promise<User> {
+    return this.users.findOneBy({ id: userId });
   }
 
-  findOne(userId: string): User {
-    return this.users[ userId ];
+  async findByUserNameAndPassword(name: string, password: string): Promise<User> {
+    return this.users.findOneBy({ name, password });
   }
 
-  createOne({ name, password }: User): User {
-    const id = v4(v4());
-    const newUser = { id: name || id, name, password };
-
-    this.users[ id ] = newUser;
+  async createOne({ name, password, email }: CreateUserDTO): Promise<User> {
+    const newUser = await this.users.save({
+      name,
+      email,
+      password,
+    });
 
     return newUser;
   }
