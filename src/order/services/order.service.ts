@@ -1,39 +1,83 @@
 import { Injectable } from '@nestjs/common';
-import { v4 } from 'uuid';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 
-import { Order } from '../models';
+import { Order } from '../../database/entities';
+import { Payment, Delivery } from '../../database/entities/order';
+
+export class OrderDTO {
+  @ApiProperty()
+  userId?: string;
+
+  @ApiProperty()
+  payment?: Payment;
+
+  @ApiProperty()
+  delivery?: Delivery;
+
+  @ApiProperty()
+  comments?: string;
+
+  total?: number;
+
+  cartId?: string;
+};
 
 @Injectable()
 export class OrderService {
-  private orders: Record<string, Order> = {}
+  constructor(
+    @InjectRepository(Order)
+    private readonly orders: Repository<Order>,
+  ) {}
 
-  findById(orderId: string): Order {
-    return this.orders[ orderId ];
+  async findById(orderId: string): Promise<Order> {
+    return this.orders.findOneBy({ id: orderId });
   }
 
-  create(data: any) {
-    const id = v4(v4())
-    const order = {
-      ...data,
-      id,
-      status: 'inProgress',
-    };
-
-    this.orders[ id ] = order;
+  async create({
+    userId,
+    payment,
+    delivery,
+    comments,
+    total,
+    cartId,
+  }: Required<OrderDTO>) {
+    const order = await this.orders.save({
+      payment,
+      delivery,
+      comments,
+      total,
+      cart: { id: cartId },
+      user: { id: userId },
+    }, { reload: true });
 
     return order;
   }
 
-  update(orderId, data) {
-    const order = this.findById(orderId);
+  async update(
+    orderId: string,
+    {
+      payment,
+      delivery,
+      comments,
+      total,
+    }: OrderDTO,
+  ): Promise<Order> {
+    const order = await this.findById(orderId);
 
     if (!order) {
       throw new Error('Order does not exist.');
     }
 
-    this.orders[ orderId ] = {
-      ...data,
+    const updatedOrder = await this.orders.save({
       id: orderId,
-    }
+      ...(payment && { payment }),
+      ...(delivery && { delivery }),
+      ...(comments && { comments }),
+      ...(total && { total }),
+    }, { reload: true });
+
+    return updatedOrder;
   }
 }
